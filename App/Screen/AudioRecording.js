@@ -154,7 +154,7 @@ export default function AudioRecording({navigation}) {
             }}>
             {item.name.replace('.mp3', '')}
           </Text>
-          <Text>
+          <Text style={{color: 'black'}}>
             {moment(item.mtime).format('DD/MM/YYYY')}{' '}
             {moment(item.mtime).format('h:mm a')}
           </Text>

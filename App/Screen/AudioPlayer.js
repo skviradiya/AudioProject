@@ -107,6 +107,7 @@ export default function AudioPlayer({navigation, route}) {
             style={{
               width: width / 10,
               textAlign: 'center',
+              color: 'black',
             }}>
             {sliderValue
               ? new Date(sliderValue * progress.duration * 1000)
@@ -133,6 +134,7 @@ export default function AudioPlayer({navigation, route}) {
             style={{
               width: width / 10,
               textAlign: 'center',
+              color: 'black',
             }}>
             {new Date(progress.duration * 1000).toISOString().slice(14, 19)}
           </Text>
