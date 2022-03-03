@@ -23,6 +23,9 @@ import {
 import AudioRecorderPlayer from 'react-native-audio-recorder-player';
 import moment from 'moment';
 import Slider from '@react-native-community/slider';
+import MusicFiles from 'react-native-get-music-files';
+import {RNAndroidAudioStore} from 'react-native-get-music-files';
+import LoaderView from '../Component/LoaderView';
 
 var RNFS = require('react-native-fs');
 const audioRecorderPlayer = new AudioRecorderPlayer();
@@ -34,6 +37,7 @@ export default function AudioRecording({navigation}) {
   const [recordingPause, setRecordingPause] = useState(true);
   const [recorderTime, setRecorderTime] = useState(null);
   const [recordingPath, setRecordingPath] = useState(null);
+  const [loaderVisible, setLoaderVisible] = useState(false);
 
   useEffect(() => {
     try {
@@ -45,52 +49,100 @@ export default function AudioRecording({navigation}) {
     } catch (err) {
       console.error(err);
     }
-    setTimeout(() => {
-      getAudioData();
-    }, 200);
+    getFolderAudio();
   }, []);
 
-  const getAudioData = () => {
-    createFolder();
-    RNFS.readDir(`${RNFS.ExternalStorageDirectoryPath}/AudioProject`).then(
-      gettedData => {
-        let tempData = [];
-        gettedData.map(value => {
-          tempData.push(value.mtime);
-          tempData.sort(function (a, b) {
-            return b - a;
+  const getFolderAudio = () => {
+    let audioArray = [];
+    RNFS.readDir(`${RNFS.ExternalStorageDirectoryPath}/Recording`).then(
+      audioRes => {
+        audioRes.forEach(value => {
+          audioArray.push({
+            fileName: value.name,
+            path: value.path,
+            mtime: value.mtime,
           });
         });
-        let finalData = [];
-        tempData.map(sortted => {
-          gettedData.map(value => {
-            if (sortted == value.mtime) {
-              finalData.push(value);
+      },
+    );
+
+    getDeviceAudioData(audioArray);
+  };
+  const getDeviceAudioData = folderAudios => {
+    MusicFiles.getAll({
+      duration: true, //default : true
+      cover: false, //default : true,
+      id: true,
+      minimumSongDuration: 1000, // get songs bigger than 10000 miliseconds duration,
+    })
+      .then(tracks => {
+        let gettedData = [];
+        tracks.forEach(trackData => {
+          RNFS.stat(trackData.path).then(audioRes => {
+            gettedData.push({
+              fileName: trackData.fileName,
+              path: trackData.path,
+              mtime: audioRes.mtime,
+            });
+            if (folderAudios.length > 0) {
+              const notSameData = gettedData.filter(deviceData => {
+                return folderAudios.some(folderData => {
+                  return deviceData.fileName !== folderData.fileName;
+                });
+              });
+              const audioDataArray = [...folderAudios, ...notSameData];
+              let tempData = [];
+              audioDataArray.map(value => {
+                tempData.push(value.mtime);
+                tempData.sort(function (a, b) {
+                  return b - a;
+                });
+              });
+              let finalData = [];
+              tempData.map(sortted => {
+                audioDataArray.map(value => {
+                  if (sortted == value.mtime) {
+                    finalData.push(value);
+                  }
+                });
+              });
+              setData(finalData);
+              tempData = [];
+              finalData = [];
+            } else {
+              let tempData = [];
+              gettedData.map(value => {
+                tempData.push(value.mtime);
+                tempData.sort(function (a, b) {
+                  return b - a;
+                });
+              });
+              let finalData = [];
+              tempData.map(sortted => {
+                gettedData.map(value => {
+                  if (sortted == value.mtime) {
+                    finalData.push(value);
+                  }
+                });
+              });
+              setData(finalData);
+              tempData = [];
+              finalData = [];
             }
           });
         });
-        setData(finalData);
-        tempData = [];
-        finalData = [];
-      },
-    );
-  };
-  const createFolder = () => {
-    RNFS.readDir(RNFS.ExternalStorageDirectoryPath).then(dir => {
-      const isAvailable = dir.some(value => {
-        return value.name.toLowerCase() == 'AudioProject'.toLowerCase();
+      })
+      .catch(error => {
+        console.log(error);
       });
-      if (!isAvailable) {
-        RNFS.mkdir(`${RNFS.ExternalStorageDirectoryPath}/AudioProject`);
-      }
-    });
   };
+
   const onStartRecording = async () => {
     setIsRecording(true);
     const result = await audioRecorderPlayer.startRecorder(
-      `${
-        RNFS.ExternalStorageDirectoryPath
-      }/AudioProject/Recording-${new Date().getTime()}.mp3`,
+      `/storage/emulated/0/Recording/Recording-${new Date().getTime()}.mp3`,
+      {},
+      true,
     );
     audioRecorderPlayer.addRecordBackListener(data => {
       setRecorderTime(data.currentPosition);
@@ -99,12 +151,8 @@ export default function AudioRecording({navigation}) {
   };
 
   const _onPauseResumeRecording = () => {
-    // console.log(recordingPause);
-    // setRecordingPause(!recordingPause);
-    console.log(recordingPause);
     if (recordingPause) {
       audioRecorderPlayer.pauseRecorder().then(() => {
-        console.log('paused');
         setRecordingPause(false);
       });
     } else {
@@ -125,17 +173,20 @@ export default function AudioRecording({navigation}) {
         }
         setRecorderTime(null);
         setRecordingPause(true);
-
-        getAudioData();
+        getFolderAudio();
       });
     });
   };
-  const renderItem = ({item}) => {
+  const renderItem = ({item, index}) => {
     return (
       <TouchableOpacity
         onPress={() => {
           !isRecording
-            ? navigation.navigate('AudioPlayer', {item: JSON.stringify(item)})
+            ? navigation.navigate('AudioPlayer', {
+                item: JSON.stringify(item),
+                index: JSON.stringify(index),
+                itemArray: JSON.stringify(data),
+              })
             : ToastAndroid.show('Recording is On', ToastAndroid.SHORT);
         }}
         style={{
@@ -145,14 +196,15 @@ export default function AudioRecording({navigation}) {
           flexDirection: 'row',
           justifyContent: 'space-between',
         }}>
-        <View>
+        <View style={{width: '90%'}}>
           <Text
+            numberOfLines={1}
             style={{
               fontSize: width / 18,
               color: '#EE4236',
               fontWeight: 'bold',
             }}>
-            {item.name.replace('.mp3', '')}
+            {item.fileName}
           </Text>
           <Text style={{color: 'black'}}>
             {moment(item.mtime).format('DD/MM/YYYY')}{' '}
@@ -162,13 +214,13 @@ export default function AudioRecording({navigation}) {
         <TouchableOpacity
           style={{justifyContent: 'center'}}
           onPress={() => {
-            Alert.alert(item.name, 'you want to delete?', [
+            Alert.alert(item.fileName, 'you want to delete?', [
               {text: 'CANCEL', onPress: () => {}},
               {
                 text: 'OK',
                 onPress: () => {
                   RNFS.unlink(item.path).then(() => {
-                    getAudioData();
+                    getFolderAudio();
                   });
                 },
               },
@@ -187,6 +239,7 @@ export default function AudioRecording({navigation}) {
   };
   return (
     <>
+      <LoaderView loaderTitle={'Loading'} isModalVisible={loaderVisible} />
       <View
         style={{
           flex: 1,

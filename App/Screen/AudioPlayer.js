@@ -7,7 +7,16 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import {backArrowIcon, musicIcon, pauseIcon, playIcon} from '../Assests/Icon';
+import {
+  backArrowIcon,
+  backwardIcon,
+  forwardIcon,
+  musicIcon,
+  nextIcon,
+  pauseIcon,
+  playIcon,
+  previousIcon,
+} from '../Assests/Icon';
 import AudioRecorderPlayer from 'react-native-audio-recorder-player';
 import Slider from '@react-native-community/slider';
 import moment from 'moment';
@@ -21,12 +30,13 @@ import TrackPlayer, {
 
 const {width, height} = Dimensions.get('window');
 export default function AudioPlayer({navigation, route}) {
-  const AudioData = JSON.parse(route.params.item);
+  const AudioDataArray = JSON.parse(route.params?.itemArray);
+  const [AudioData, setAudioData] = useState(JSON.parse(route.params?.item));
+  const [AudioIndex, setAudioIndex] = useState(JSON.parse(route.params.index));
   const [isAudioPlaying, setIsAudioPlaying] = useState(false);
   const [isSeeking, setIsSeeking] = useState(false);
   const [sliderValue, setSliderValue] = useState(null);
   const progress = useProgress();
-
   useEffect(() => {
     if (!isSeeking && progress.position && progress.duration) {
       setSliderValue(progress.position / progress.duration);
@@ -35,7 +45,14 @@ export default function AudioPlayer({navigation, route}) {
       progress.duration.toFixed(1) == progress.position.toFixed(1) &&
       progress.duration != 0
     ) {
-      navigation.goBack();
+      console.log('hello');
+      console.log(AudioIndex);
+      TrackPlayer.stop();
+      AudioIndex + 1 < AudioDataArray.length
+        ? (setAudioData(AudioDataArray[AudioIndex + 1]),
+          setAudioIndex(AudioIndex + 1))
+        : (setAudioData(AudioDataArray[0]), setAudioIndex(0));
+      // navigation.goBack();
     }
   }, [progress]);
   useEffect(() => {
@@ -48,13 +65,16 @@ export default function AudioPlayer({navigation, route}) {
       onStartPlayer();
     });
   }, []);
+  useEffect(() => {
+    setupPlayer();
+  }, [AudioIndex]);
 
   const setupPlayer = async () => {
     await TrackPlayer.setupPlayer({});
     await TrackPlayer.updateOptions({
       stopWithApp: true,
     });
-    await TrackPlayer.add({url: AudioData.path});
+    await TrackPlayer.add({url: AudioDataArray[AudioIndex].path});
     TrackPlayer.play();
     setIsAudioPlaying(true);
   };
@@ -81,15 +101,18 @@ export default function AudioPlayer({navigation, route}) {
             style={{width: width / 15, height: width / 15}}
           />
         </TouchableOpacity>
-        <Text
-          style={{
-            fontSize: width / 20,
-            marginLeft: width / 20,
-            color: 'white',
-            fontWeight: 'bold',
-          }}>
-          {AudioData.name.replace('.mp3', '')}
-        </Text>
+        <View style={{width: '90%'}}>
+          <Text
+            numberOfLines={1}
+            style={{
+              fontSize: width / 20,
+              marginLeft: width / 20,
+              color: 'white',
+              fontWeight: 'bold',
+            }}>
+            {AudioData.fileName}
+          </Text>
+        </View>
       </View>
       <View style={{flex: 1, justifyContent: 'center', alignItems: 'center'}}>
         <Image
@@ -139,18 +162,84 @@ export default function AudioPlayer({navigation, route}) {
             {new Date(progress.duration * 1000).toISOString().slice(14, 19)}
           </Text>
         </View>
-        <TouchableOpacity
-          onPress={onClickPlayPause}
-          style={{alignItems: 'center', marginVertical: width / 10}}>
-          <Image
-            source={isAudioPlaying ? pauseIcon : playIcon}
-            style={{
-              width: width / 10,
-              height: width / 10,
-              tintColor: '#EE4236',
-            }}
-          />
-        </TouchableOpacity>
+        <View
+          style={{
+            flexDirection: 'row',
+            paddingVertical: width / 10,
+            justifyContent: 'space-around',
+            alignItems: 'center',
+          }}>
+          <TouchableOpacity
+            onPress={() => {
+              TrackPlayer.stop();
+              setAudioData(AudioDataArray[AudioIndex - 1]);
+              setAudioIndex(AudioIndex - 1);
+            }}>
+            <Image
+              source={previousIcon}
+              style={{
+                width: width / 15,
+                height: width / 15,
+                tintColor: '#EE4236',
+              }}
+            />
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={() => {
+              TrackPlayer.seekTo(progress.position - 10);
+            }}>
+            <Image
+              source={backwardIcon}
+              style={{
+                width: width / 15,
+                height: width / 15,
+                tintColor: '#EE4236',
+              }}
+            />
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={onClickPlayPause}
+            style={{alignItems: 'center'}}>
+            <Image
+              source={isAudioPlaying ? pauseIcon : playIcon}
+              style={{
+                width: width / 10,
+                height: width / 10,
+                tintColor: '#EE4236',
+              }}
+            />
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={() => {
+              TrackPlayer.seekTo(progress.position + 10);
+            }}>
+            <Image
+              source={forwardIcon}
+              style={{
+                width: width / 15,
+                height: width / 15,
+                tintColor: '#EE4236',
+              }}
+            />
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={async () => {
+              TrackPlayer.stop();
+              AudioIndex + 1 < AudioDataArray.length
+                ? (setAudioData(AudioDataArray[AudioIndex + 1]),
+                  setAudioIndex(AudioIndex + 1))
+                : (setAudioData(AudioDataArray[0]), setAudioIndex(0));
+            }}>
+            <Image
+              source={nextIcon}
+              style={{
+                width: width / 15,
+                height: width / 15,
+                tintColor: '#EE4236',
+              }}
+            />
+          </TouchableOpacity>
+        </View>
       </View>
     </View>
   );
